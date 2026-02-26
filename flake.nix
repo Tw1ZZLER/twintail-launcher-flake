@@ -251,6 +251,17 @@
               )
             '';
 
+            postFixup = ''
+              mv $out/bin/twintaillauncher $out/bin/.twintaillauncher-launcher
+              cat > $out/bin/twintaillauncher << 'WRAPPER'
+              #!/bin/sh
+              data="''${XDG_DATA_HOME:-$HOME/.local/share}/twintaillauncher"
+              chmod -f u+w "$data/hpatchz" "$data/hpatchz.exe" 2>/dev/null || true
+              exec "$(dirname "$0")/.twintaillauncher-launcher" "$@"
+              WRAPPER
+              chmod +x $out/bin/twintaillauncher
+            '';
+
             meta = {
               description = "A multi-platform launcher for your anime games (pre-built binary)";
               homepage = "https://github.com/TwintailTeam/TwintailLauncher";
