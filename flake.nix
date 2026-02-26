@@ -168,10 +168,12 @@
 
           preFixup = ''
             gappsWrapperArgs+=(
-              --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [
-                pkgs.vulkan-loader
-                pkgs.libayatana-appindicator
-              ]}"
+              --prefix LD_LIBRARY_PATH : "${
+                lib.makeLibraryPath [
+                  pkgs.vulkan-loader
+                  pkgs.libayatana-appindicator
+                ]
+              }"
             )
           '';
 
@@ -223,10 +225,12 @@
             # wrapGAppsHook3 handles wrapping automatically during fixup.
             preFixup = ''
               gappsWrapperArgs+=(
-                --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [
-                  pkgs.vulkan-loader
-                  pkgs.libayatana-appindicator
-                ]}"
+                --prefix LD_LIBRARY_PATH : "${
+                  lib.makeLibraryPath [
+                    pkgs.vulkan-loader
+                    pkgs.libayatana-appindicator
+                  ]
+                }"
               )
             '';
 
