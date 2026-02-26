@@ -20,19 +20,21 @@
     };
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    crane,
-    rust-overlay,
-    flake-utils,
-    twintail-launcher-src,
-  }:
-    flake-utils.lib.eachSystem ["x86_64-linux" "aarch64-linux"] (
-      system: let
+  outputs =
+    {
+      self,
+      nixpkgs,
+      crane,
+      rust-overlay,
+      flake-utils,
+      twintail-launcher-src,
+    }:
+    flake-utils.lib.eachSystem [ "x86_64-linux" ] (
+      system:
+      let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [rust-overlay.overlays.default];
+          overlays = [ rust-overlay.overlays.default ];
         };
         inherit (pkgs) lib;
 
@@ -65,7 +67,7 @@
         # Tauri's build.rs expects the built frontend at "../dist" relative
         # to src-tauri/, i.e. at the repository root.
 
-        fullSrc = pkgs.runCommand "twintaillauncher-src" {} ''
+        fullSrc = pkgs.runCommand "twintaillauncher-src" { } ''
           cp -r ${twintail-launcher-src} $out
           chmod -R u+w $out
           cp -r ${frontend} $out/dist
@@ -82,8 +84,10 @@
             # Keys must be the full `source` field from Cargo.lock.
             # If these become stale after a Cargo.lock update, rebuild once —
             # the error message will print the correct new hashes.
-            "git+https://github.com/TwintailTeam/fischl-rs.git?branch=master#56cbe16798b5749fe0cc739bcec96b0b52c4e3aa" = "sha256-ZnZSb/KrVOMU7+xHHW8otDqW6SGFrQZ8pyuB5+0yoT8=";
-            "git+https://github.com/TwintailTeam/hdiffpatch-rs.git?branch=master#63c6fad33294afa12110b8d3c84481efe4e30834" = "sha256-da/6JTGfnhYcJFsF3Oqs4iSY+RYrJ9Hjk3X6yc2lVPk=";
+            "git+https://github.com/TwintailTeam/fischl-rs.git?branch=master#56cbe16798b5749fe0cc739bcec96b0b52c4e3aa" =
+              "sha256-ZnZSb/KrVOMU7+xHHW8otDqW6SGFrQZ8pyuB5+0yoT8=";
+            "git+https://github.com/TwintailTeam/hdiffpatch-rs.git?branch=master#63c6fad33294afa12110b8d3c84481efe4e30834" =
+              "sha256-da/6JTGfnhYcJFsF3Oqs4iSY+RYrJ9Hjk3X6yc2lVPk=";
           };
         };
 
@@ -107,7 +111,8 @@
           # System-tray support
           libayatana-appindicator
         ];
-      in {
+      in
+      {
         packages = {
           twintaillauncher = craneLib.buildPackage {
             pname = "twintaillauncher";
@@ -146,7 +151,7 @@
             # wrapGAppsHook3 handles wrapping automatically during fixup.
             preFixup = ''
               gappsWrapperArgs+=(
-                --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [pkgs.vulkan-loader]}"
+                --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ pkgs.vulkan-loader ]}"
               )
             '';
 
@@ -178,7 +183,7 @@
 
         # Development shell for hacking on TwintailLauncher
         devShells.default = craneLib.devShell {
-          inputsFrom = [self.packages.${system}.twintaillauncher];
+          inputsFrom = [ self.packages.${system}.twintaillauncher ];
           packages = with pkgs; [
             rustc
             nodejs
