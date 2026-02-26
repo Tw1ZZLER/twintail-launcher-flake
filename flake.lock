@@ -105,6 +105,7 @@
       },
       "original": {
         "owner": "TwintailTeam",
+        "ref": "stable",
         "repo": "TwintailLauncher",
         "type": "github"
       }
