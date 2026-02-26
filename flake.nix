@@ -111,6 +111,75 @@
           # System-tray support
           libayatana-appindicator
         ];
+
+        # ── 5. Pre-built binary from GitHub Releases (.deb) ──────────────
+        # Mirrors how the COPR RPM spec extracts the .deb — no compilation
+        # needed. Much faster than building from source.
+
+        debSrc = pkgs.fetchurl {
+          url = "https://github.com/TwintailTeam/TwintailLauncher/releases/download/ttl-v${version}/twintaillauncher_${version}_amd64.deb";
+          hash = "sha256-ZJg0BbKWcocY8xUErE0aDgA7TOk8pnBfQJLHFCH86rA=";
+        };
+
+        twintaillauncher-bin = pkgs.stdenv.mkDerivation {
+          pname = "twintaillauncher-bin";
+          inherit version;
+          src = debSrc;
+
+          nativeBuildInputs = with pkgs; [
+            autoPatchelfHook
+            wrapGAppsHook3
+            dpkg
+          ];
+
+          buildInputs =
+            runtimeDeps
+            ++ (with pkgs; [
+              stdenv.cc.cc.lib # libstdc++ for autoPatchelfHook
+            ]);
+
+          unpackPhase = ''
+            dpkg-deb -x $src .
+          '';
+
+          installPhase = ''
+            runHook preInstall
+
+            # Binary
+            install -Dm755 usr/bin/twintaillauncher $out/bin/twintaillauncher
+
+            # Resources (hpatchz, reaper, hkrpg_patch.dll)
+            mkdir -p $out/lib/twintaillauncher/resources
+            cp -a usr/lib/twintaillauncher/resources/* $out/lib/twintaillauncher/resources/
+
+            # Desktop entry
+            install -Dm644 usr/share/applications/twintaillauncher.desktop \
+              $out/share/applications/twintaillauncher.desktop
+
+            # Icons
+            for icondir in usr/share/icons/hicolor/*/apps; do
+              size=$(basename "$(dirname "$icondir")")
+              install -Dm644 "$icondir/twintaillauncher.png" \
+                "$out/share/icons/hicolor/$size/apps/twintaillauncher.png"
+            done
+
+            runHook postInstall
+          '';
+
+          preFixup = ''
+            gappsWrapperArgs+=(
+              --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ pkgs.vulkan-loader ]}"
+            )
+          '';
+
+          meta = {
+            description = "A multi-platform launcher for your anime games (pre-built binary)";
+            homepage = "https://github.com/TwintailTeam/TwintailLauncher";
+            license = lib.licenses.gpl3Only;
+            platforms = [ "x86_64-linux" ];
+            mainProgram = "twintaillauncher";
+          };
+        };
       in
       {
         packages = {
@@ -178,7 +247,8 @@
             '';
           };
 
-          default = self.packages.${system}.twintaillauncher;
+          default = self.packages.${system}.twintaillauncher-bin;
+          inherit twintaillauncher-bin;
         };
 
         # Development shell for hacking on TwintailLauncher
