@@ -180,8 +180,12 @@
         devShells.default = craneLib.devShell {
           inputsFrom = [self.packages.${system}.twintaillauncher];
           packages = with pkgs; [
+            rustc
             nodejs
+            pnpm
+            protobuf
             cargo-tauri
+            cargo-xwin
           ];
         };
       }
