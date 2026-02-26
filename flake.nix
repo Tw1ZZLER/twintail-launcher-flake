@@ -13,9 +13,9 @@
 
     flake-utils.url = "github:numtide/flake-utils";
 
-    # TwintailLauncher source – override with a specific rev/branch if needed
+    # TwintailLauncher source – building from stable branch
     twintail-launcher-src = {
-      url = "github:TwintailTeam/TwintailLauncher";
+      url = "github:TwintailTeam/TwintailLauncher/stable";
       flake = false;
     };
   };
