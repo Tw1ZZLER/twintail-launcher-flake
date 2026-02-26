@@ -222,22 +222,20 @@
               runHook preInstall
 
               # Binary
-              install -Dm755 usr/bin/twintaillauncher $out/bin/twintaillauncher
+              install -Dm755 usr/bin/twintaillauncher -t "$out/bin"
 
               # Resources (hpatchz, reaper, hkrpg_patch.dll)
-              mkdir -p $out/lib/twintaillauncher/resources
-              cp -a usr/lib/twintaillauncher/resources/* $out/lib/twintaillauncher/resources/
+              install -Dm755 usr/lib/twintaillauncher/resources/hpatchz -t "$out/lib/twintaillauncher/resources"
+              install -Dm755 usr/lib/twintaillauncher/resources/reaper -t "$out/lib/twintaillauncher/resources"
+              install -Dm644 usr/lib/twintaillauncher/resources/hkrpg_patch.dll -t "$out/lib/twintaillauncher/resources"
 
               # Desktop entry
-              install -Dm644 usr/share/applications/twintaillauncher.desktop \
-                $out/share/applications/twintaillauncher.desktop
+              install -Dm644 usr/share/applications/twintaillauncher.desktop -t "$out/share/applications"
 
               # Icons
-              for icondir in usr/share/icons/hicolor/*/apps; do
-                size=$(basename "$(dirname "$icondir")")
-                install -Dm644 "$icondir/twintaillauncher.png" \
-                  "$out/share/icons/hicolor/$size/apps/twintaillauncher.png"
-              done
+              install -Dm644 usr/share/icons/hicolor/32x32/apps/twintaillauncher.png "$out/share/icons/hicolor/32x32/apps/$_pkgname.png"
+              install -Dm644 usr/share/icons/hicolor/128x128/apps/twintaillauncher.png "$out/share/icons/hicolor/128x128/apps/$_pkgname.png"
+              install -Dm644 usr/share/icons/hicolor/256x256@2/apps/twintaillauncher.png "$out/share/icons/hicolor/256x256@2/apps/$_pkgname.png"
 
               runHook postInstall
             '';
