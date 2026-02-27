@@ -108,6 +108,9 @@
           # wgpu / Vulkan (GPU detection)
           vulkan-loader
 
+          # GIO TLS backend — required by libsoup 3 for HTTPS
+          glib-networking
+
           # System-tray support
           libayatana-appindicator
         ];
@@ -151,6 +154,12 @@
                 stdenv.cc.cc.lib # libstdc++ (for autoPatchelfHook)
               ]);
 
+            # The Tauri CLI normally injects --features tauri/custom-protocol
+            # automatically.  Since crane bypasses the CLI, we must add it
+            # ourselves — without it Tauri falls back to devUrl (localhost)
+            # instead of embedding the frontend assets.
+            cargoExtraArgs = "--locked --features tauri/custom-protocol";
+
             # Use system OpenSSL via pkg-config instead of vendoring
             OPENSSL_NO_VENDOR = "1";
 
@@ -164,17 +173,38 @@
                     pkgs.libayatana-appindicator
                   ]
                 }"
+                # Rust reqwest/openssl needs CA certs; NixOS doesn't use /etc/ssl
+                --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
               )
+            '';
+
+            # After wrapGAppsHook3 creates the binary wrapper, re-wrap with
+            # a shell script that chmods copied resource files first.
+            # Nix store files are read-only (0555); std::fs::copy preserves
+            # those permissions to the data dir, blocking overwrites on
+            # subsequent launches.
+            postFixup = ''
+                            if [ -f $out/bin/twintaillauncher ]; then
+                              mv $out/bin/twintaillauncher $out/bin/.twintaillauncher-launcher
+                              cat > $out/bin/twintaillauncher << 'WRAPPER'
+              #!/bin/sh
+              data="''${XDG_DATA_HOME:-$HOME/.local/share}/twintaillauncher"
+              chmod -f u+w "$data/hpatchz" "$data/hpatchz.exe" 2>/dev/null || true
+              exec "$(dirname "$0")/.twintaillauncher-launcher" "$@"
+              WRAPPER
+                              chmod +x $out/bin/twintaillauncher
+                            fi
             '';
 
             postInstall = ''
               # ── Resources ──
               # Tauri resolves resources at {exe_dir}/../lib/{identifier}/
-              mkdir -p $out/lib/twintaillauncher
+              # The app then looks for {resource_dir}/resources/{file}
+              mkdir -p $out/lib/twintaillauncher/resources
               install -Dm755 ${fullSrc}/src-tauri/resources/hpatchz \
-                $out/lib/twintaillauncher/hpatchz
+                $out/lib/twintaillauncher/resources/hpatchz
               install -Dm755 ${fullSrc}/src-tauri/resources/reaper \
-                $out/lib/twintaillauncher/reaper
+                $out/lib/twintaillauncher/resources/reaper
 
               # ── Desktop entry ──
               install -Dm644 ${fullSrc}/twintaillauncher.desktop \
@@ -248,6 +278,7 @@
                     pkgs.libayatana-appindicator
                   ]
                 }"
+                --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
               )
             '';
 
