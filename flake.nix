@@ -108,12 +108,20 @@
           # wgpu / Vulkan (GPU detection)
           vulkan-loader
 
-          # GIO TLS backend — required by libsoup 3 for HTTPS
+          # GIO TLS backend — required by WebKitGTK / libsoup 3 for HTTPS
           glib-networking
 
           # System-tray support
           libayatana-appindicator
         ];
+
+        # Script sourced by non-interactive bash (bash -c "...") to strip
+        # GIO_EXTRA_MODULES before it leaks into pressure-vessel, which
+        # uses Steam Runtime's glib and can't load NixOS-built GIO modules.
+        bashEnvScript = pkgs.writeText "twintaillauncher-bash-env" ''
+          unset GIO_EXTRA_MODULES
+          unset BASH_ENV
+        '';
 
       in
       {
@@ -124,7 +132,7 @@
           # then this can be useful, or if you just want the latest development
           # version of Twintail.
 
-          twintaillauncher = craneLib.buildPackage {
+          twintaillauncher = let unwrapped = craneLib.buildPackage {
             pname = "twintaillauncher";
             inherit version;
             src = fullSrc;
@@ -144,7 +152,6 @@
             nativeBuildInputs = with pkgs; [
               pkg-config
               cmake # needed by libgit2-sys (vendored C build)
-              wrapGAppsHook3
               autoPatchelfHook # patches bundled hpatchz & reaper ELF binaries
             ];
 
@@ -163,23 +170,8 @@
             # Use system OpenSSL via pkg-config instead of vendoring
             OPENSSL_NO_VENDOR = "1";
 
-            # Extend the GApps wrapper with Vulkan lib path.
-            # wrapGAppsHook3 handles wrapping automatically during fixup.
-            preFixup = ''
-              gappsWrapperArgs+=(
-                --prefix LD_LIBRARY_PATH : "${
-                  lib.makeLibraryPath [
-                    pkgs.vulkan-loader
-                    pkgs.libayatana-appindicator
-                  ]
-                }"
-                # Rust reqwest/openssl needs CA certs; NixOS doesn't use /etc/ssl
-                --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
-              )
-            '';
-
-            # After wrapGAppsHook3 creates the binary wrapper, re-wrap with
-            # a shell script that chmods copied resource files first.
+            # Wrap the binary with a shell script that chmods copied
+            # resource files first.
             # Nix store files are read-only (0555); std::fs::copy preserves
             # those permissions to the data dir, blocking overwrites on
             # subsequent launches.
@@ -219,12 +211,52 @@
                 $out/share/icons/hicolor/256x256/apps/twintaillauncher.png
             '';
           };
+          in
+          pkgs.buildFHSEnv {
+            name = "twintaillauncher";
+            targetPkgs =
+              _:
+              runtimeDeps
+              ++ (with pkgs; [
+                coreutils
+                bash
+                # 32-bit support: pressure-vessel ships i386 ELF helpers
+                # (e.g. i386-linux-gnu-capsule-capture-libs) that need the
+                # 32-bit dynamic linker and libstdc++.
+                pkgsi686Linux.glibc
+                pkgsi686Linux.gcc-unwrapped.lib
+              ]);
+            profile = ''
+              # WebKitGTK / libsoup 3 needs glib-networking for HTTPS (TLS).
+              export GIO_EXTRA_MODULES=/usr/lib64/gio/modules
+              export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+              # Prevent GIO_EXTRA_MODULES from leaking into pressure-vessel.
+              # TwintailLauncher launches games via bash -c "..." which
+              # sources BASH_ENV (non-interactive bash). The script unsets
+              # GIO_EXTRA_MODULES so pressure-vessel's Steam Runtime glib
+              # won't try to load NixOS-built GIO modules (ABI mismatch).
+              export BASH_ENV=${bashEnvScript}
+            '';
+            runScript = "${unwrapped}/bin/twintaillauncher";
+            extraInstallCommands = ''
+              mkdir -p $out/share
+              ln -s ${unwrapped}/share/applications $out/share/applications 2>/dev/null || true
+              ln -s ${unwrapped}/share/icons $out/share/icons 2>/dev/null || true
+            '';
+            meta = {
+              description = "A multi-platform launcher for your anime games";
+              homepage = "https://github.com/TwintailTeam/TwintailLauncher";
+              license = lib.licenses.gpl3Only;
+              platforms = [ "x86_64-linux" ];
+              mainProgram = "twintaillauncher";
+            };
+          };
 
           # ── 6. Pre-built binary from GitHub Releases (.deb) ──────────────
           # Mirrors how the COPR RPM spec extracts the .deb — no compilation
           # needed. Much faster than building from source.
 
-          twintaillauncher-bin = pkgs.stdenv.mkDerivation {
+          twintaillauncher-bin = let unwrapped = pkgs.stdenv.mkDerivation {
             pname = "twintaillauncher-bin";
             inherit version;
             src = pkgs.fetchurl {
@@ -234,7 +266,6 @@
 
             nativeBuildInputs = with pkgs; [
               autoPatchelfHook
-              wrapGAppsHook3
               dpkg
             ];
 
@@ -270,18 +301,6 @@
               runHook postInstall
             '';
 
-            preFixup = ''
-              gappsWrapperArgs+=(
-                --prefix LD_LIBRARY_PATH : "${
-                  lib.makeLibraryPath [
-                    pkgs.vulkan-loader
-                    pkgs.libayatana-appindicator
-                  ]
-                }"
-                --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
-              )
-            '';
-
             postFixup = ''
               mv $out/bin/twintaillauncher $out/bin/.twintaillauncher-launcher
               cat > $out/bin/twintaillauncher << 'WRAPPER'
@@ -293,6 +312,37 @@
               chmod +x $out/bin/twintaillauncher
             '';
 
+            meta = {
+              description = "A multi-platform launcher for your anime games (pre-built binary)";
+              homepage = "https://github.com/TwintailTeam/TwintailLauncher";
+              license = lib.licenses.gpl3Only;
+              platforms = [ "x86_64-linux" ];
+              mainProgram = "twintaillauncher";
+            };
+          };
+          in
+          pkgs.buildFHSEnv {
+            name = "twintaillauncher";
+            targetPkgs =
+              _:
+              runtimeDeps
+              ++ (with pkgs; [
+                coreutils
+                bash
+                pkgsi686Linux.glibc
+                pkgsi686Linux.gcc-unwrapped.lib
+              ]);
+            profile = ''
+              export GIO_EXTRA_MODULES=/usr/lib64/gio/modules
+              export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+              export BASH_ENV=${bashEnvScript}
+            '';
+            runScript = "${unwrapped}/bin/twintaillauncher";
+            extraInstallCommands = ''
+              mkdir -p $out/share
+              ln -s ${unwrapped}/share/applications $out/share/applications 2>/dev/null || true
+              ln -s ${unwrapped}/share/icons $out/share/icons 2>/dev/null || true
+            '';
             meta = {
               description = "A multi-platform launcher for your anime games (pre-built binary)";
               homepage = "https://github.com/TwintailTeam/TwintailLauncher";
